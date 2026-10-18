@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
+import 'package:bishe_car_wash/main.dart';
 import 'cashier_registration_screen.dart';
 import 'customer_history_screen.dart';
 import 'package:bishe_car_wash/features/cashier/presentation/widgets/payment_verification_dialog.dart';
 
-class CashierHubScreen extends StatefulWidget {
+class CashierHubScreen extends ConsumerStatefulWidget {
   const CashierHubScreen({super.key});
 
   @override
-  State<CashierHubScreen> createState() => _CashierHubScreenState();
+  ConsumerState<CashierHubScreen> createState() => _CashierHubScreenState();
 }
 
-class _CashierHubScreenState extends State<CashierHubScreen> {
+class _CashierHubScreenState extends ConsumerState<CashierHubScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _bookings = [];
   bool _isLoading = true;
@@ -28,6 +30,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
 
   Future<void> _fetchBookings() async {
     try {
+      // Exclude completed and released so they move to Customer History
       final response = await _supabase
           .from('bookings')
           .select('*, vehicles(*), services(*), employees(full_name)')
@@ -127,6 +130,18 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
         foregroundColor: Colors.white,
         title: Text('Cashier Hub (${_bookings.length} In Queue)'),
         actions: [
+          // Language Switcher (EN & AM only for Cashier Portal)
+          PopupMenuButton<Locale>(
+            icon: const Icon(Icons.language_rounded, color: Colors.white),
+            tooltip: 'Language / ቋንቋ',
+            onSelected: (Locale newLocale) {
+              ref.read(localeProvider.notifier).state = newLocale;
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: Locale('en'), child: Text('English')),
+              PopupMenuItem(value: Locale('am'), child: Text('አማርኛ (Amharic)')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.history_outlined),
             tooltip: 'Customer History',
@@ -312,11 +327,8 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                   color: AppColors.primaryBlue),
                             ),
                             const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
-                              alignment: WrapAlignment.spaceBetween,
-                              crossAxisAlignment: WrapCrossAlignment.center,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 DropdownButton<String>(
                                   value: currentStatus,
@@ -351,7 +363,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                       backgroundColor: AppColors.successGreen,
                                       foregroundColor: Colors.white,
                                     ),
-                                    icon: const Icon(Icons.payment, size: 18),
+                                    icon: const Icon(Icons.payment),
                                     label: const Text('Verify Payment'),
                                     onPressed: () {
                                       showDialog(

@@ -12,7 +12,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'BISHE Car Wash';
 
   @override
-  String get customerBooking => 'Customer Booking';
+  String get customerBooking => 'Car Wash Booking';
 
   @override
   String get selectServiceLocation => 'Select Service Location';
@@ -21,7 +21,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get washingStation => 'Washing Station';
 
   @override
-  String get mobileService => 'Mobile Service';
+  String get mobileService => 'Mobile Service (Home Visit)';
 
   @override
   String get driveToStation => 'Drive to station';
@@ -30,10 +30,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get washAtHome => 'Wash at your home';
 
   @override
-  String get vehicleAndContact => 'Vehicle & Contact Information';
+  String get vehicleAndContact => 'Vehicle & Owner Information';
 
   @override
-  String get licensePlate => 'License Plate Number';
+  String get licensePlate => 'License Plate';
 
   @override
   String get fullName => 'Full Name';
@@ -42,7 +42,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get phoneNumber => 'Phone Number';
 
   @override
-  String get vehicleClass => 'Vehicle Class';
+  String get vehicleClass => 'Vehicle Category';
 
   @override
   String get typeA => 'Type A - Small (Sedan/Hatchback)';
@@ -54,8 +54,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get typeC => 'Type C - Large (Truck/Van/Minibus)';
 
   @override
-  String get selectServicePackages =>
-      'Select Service Packages (Multiple Allowed)';
+  String get selectServicePackages => 'Select Service Packages';
 
   @override
   String get totalCombinedPrice => 'Total Combined Price';

@@ -109,7 +109,7 @@ abstract class AppLocalizations {
   /// No description provided for @customerBooking.
   ///
   /// In en, this message translates to:
-  /// **'Customer Booking'**
+  /// **'Car Wash Booking'**
   String get customerBooking;
 
   /// No description provided for @selectServiceLocation.
@@ -127,7 +127,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileService.
   ///
   /// In en, this message translates to:
-  /// **'Mobile Service'**
+  /// **'Mobile Service (Home Visit)'**
   String get mobileService;
 
   /// No description provided for @driveToStation.
@@ -145,13 +145,13 @@ abstract class AppLocalizations {
   /// No description provided for @vehicleAndContact.
   ///
   /// In en, this message translates to:
-  /// **'Vehicle & Contact Information'**
+  /// **'Vehicle & Owner Information'**
   String get vehicleAndContact;
 
   /// No description provided for @licensePlate.
   ///
   /// In en, this message translates to:
-  /// **'License Plate Number'**
+  /// **'License Plate'**
   String get licensePlate;
 
   /// No description provided for @fullName.
@@ -169,7 +169,7 @@ abstract class AppLocalizations {
   /// No description provided for @vehicleClass.
   ///
   /// In en, this message translates to:
-  /// **'Vehicle Class'**
+  /// **'Vehicle Category'**
   String get vehicleClass;
 
   /// No description provided for @typeA.
@@ -193,7 +193,7 @@ abstract class AppLocalizations {
   /// No description provided for @selectServicePackages.
   ///
   /// In en, this message translates to:
-  /// **'Select Service Packages (Multiple Allowed)'**
+  /// **'Select Service Packages'**
   String get selectServicePackages;
 
   /// No description provided for @totalCombinedPrice.
