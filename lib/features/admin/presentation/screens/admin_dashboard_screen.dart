@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
+import 'package:bishe_car_wash/main.dart';
 import 'widgets/admin_financials_view.dart';
 import 'widgets/admin_live_queue_view.dart';
 import 'widgets/admin_service_pricing_view.dart';
 import 'widgets/admin_employee_management_view.dart';
 import 'package:bishe_car_wash/features/cashier/presentation/screens/customer_history_screen.dart';
 
-class AdminDashboardScreen extends StatefulWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _selectedTab = 0;
 
   final List<Widget> _adminTabs = const [
@@ -40,6 +43,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,
         actions: [
+          // Language Switcher (EN & AM only for Administrative Portal)
+          PopupMenuButton<Locale>(
+            icon: const Icon(Icons.language_rounded, color: Colors.white),
+            tooltip: 'Language / ቋንቋ',
+            onSelected: (Locale newLocale) {
+              ref.read(localeProvider.notifier).state = newLocale;
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: Locale('en'), child: Text('English')),
+              PopupMenuItem(value: Locale('am'), child: Text('አማርኛ (Amharic)')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () => Navigator.pop(context),
