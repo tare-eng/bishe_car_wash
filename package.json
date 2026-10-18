@@ -1,0 +1,7 @@
+{
+  "name": "bishe-car-wash",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "submodules/flutter/bin/flutter build web --release || flutter build web --release"
+  }
+}

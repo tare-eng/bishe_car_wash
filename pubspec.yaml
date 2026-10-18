@@ -1,0 +1,42 @@
+name: bishe_car_wash
+description: "BISHE Car Wash Service Mobile Application"
+publish_to: 'none' # Prevents accidental publishing to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+
+  # Backend & State Management
+  supabase_flutter: ^2.5.0
+  flutter_riverpod: ^2.5.1
+
+  # Image picking for cashier payment screenshots
+  image_picker: ^1.1.0
+
+  # Location & Geofencing for Mobile Wash
+  geolocator: ^11.0.0
+
+  # Direct Phone Calls, Map Navigation, & URL Launcher
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  generate: true
+  uses-material-design: true
+
+  # Assets folder for logo and visuals
+  assets:
+    - assets/images/logo.png
