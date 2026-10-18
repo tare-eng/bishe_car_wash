@@ -107,8 +107,8 @@ class _CashierRegistrationScreenState
           .from('bookings')
           .select()
           .eq('assigned_bay', _selectedBay)
-          .inFilter('status',
-              ['order_placed', 'confirmed', 'in_progress', 'washing', 'ready']);
+          .inFilter(
+              'status', ['booked', 'in_progress', 'finished', 'released']);
 
       if (!mounted) return;
       setState(() {
@@ -263,7 +263,7 @@ class _CashierRegistrationScreenState
         'customer_id': currentUser?.id,
         'vehicle_id': vehicleId,
         'service_id': primaryServiceId,
-        'source': _selectedSource,
+        'source': _selectedSource == 'phone' ? 'walk_in' : _selectedSource,
         'location_type': _selectedLocation,
         'total_amount': _calculatedAmount,
         'commission_earned': _calculatedCommission,
@@ -271,7 +271,7 @@ class _CashierRegistrationScreenState
         'assigned_bay': _selectedLocation == 'stationary' ? _selectedBay : null,
         'employee_id': _selectedEmployeeId,
         'payment_status': 'pending',
-        'status': 'order_placed',
+        'status': 'booked',
       };
 
       if (_selectedLocation == 'mobile') {
@@ -393,7 +393,7 @@ class _CashierRegistrationScreenState
                   ),
                   const SizedBox(height: 16),
 
-                  // Service Location Cards (Matching Customer Booking UI/UX)
+                  // Service Location Cards
                   Text(
                     l10n.selectServiceLocation,
                     style: const TextStyle(
