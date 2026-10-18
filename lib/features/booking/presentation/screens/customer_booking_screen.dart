@@ -21,7 +21,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   List<Map<String, dynamic>> _services = [];
   int? _selectedServiceId;
-  String _locationType = 'stationary'; // 'stationary' or 'mobile'
+  String _locationType = 'stationary';
 
   bool _isLoading = false;
   bool _isFetchingServices = true;
@@ -68,7 +68,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       final ownerName = _ownerNameController.text.trim();
       final phone = _phoneController.text.trim();
 
-      // 1. Create or retrieve vehicle entry
       final existingVehicle = await _supabase
           .from('vehicles')
           .select('id')
@@ -91,14 +90,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         vehicleId = newVehicle['id'] as int;
       }
 
-      // 2. Fetch price details
       final serviceData =
           _services.firstWhere((s) => s['id'] == _selectedServiceId);
       final double totalAmount = (serviceData['price'] ?? 0.0).toDouble();
 
       final currentUser = _supabase.auth.currentUser;
 
-      // 3. Insert new booking explicitly set to 'booked' status
       final bookingResponse = await _supabase
           .from('bookings')
           .insert({
@@ -111,7 +108,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             'delivery_address': _locationType == 'mobile'
                 ? _addressController.text.trim()
                 : null,
-            'status': 'booked',
+            'status': 'order_placed',
             'payment_status': 'pending',
             'total_amount': totalAmount,
           })
@@ -120,7 +117,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
       final int createdBookingId = bookingResponse['id'] as int;
 
-      // 4. Save booking ID to SharedPreferences for tracking position
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('latest_booking_id', createdBookingId);
 

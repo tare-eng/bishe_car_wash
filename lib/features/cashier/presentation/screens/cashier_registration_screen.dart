@@ -23,8 +23,8 @@ class _CashierRegistrationScreenState extends State<CashierRegistrationScreen> {
 
   int? _selectedServiceId;
   int? _selectedEmployeeId;
-  String _selectedSource = 'walk_in'; // 'walk_in' or 'phone'
-  String _selectedLocationType = 'stationary'; // 'stationary' or 'mobile'
+  String _selectedSource = 'walk_in';
+  String _selectedLocationType = 'stationary';
   final TextEditingController _addressController = TextEditingController();
 
   bool _isLoading = false;
@@ -75,7 +75,6 @@ class _CashierRegistrationScreenState extends State<CashierRegistrationScreen> {
       final ownerName = _ownerNameController.text.trim();
       final phone = _phoneController.text.trim();
 
-      // 1. Check or insert vehicle
       final existingVehicle = await _supabase
           .from('vehicles')
           .select('id')
@@ -98,17 +97,14 @@ class _CashierRegistrationScreenState extends State<CashierRegistrationScreen> {
         vehicleId = newVehicle['id'] as int;
       }
 
-      // 2. Find service price and details
       final serviceData =
           _services.firstWhere((s) => s['id'] == _selectedServiceId);
       final double totalAmount = (serviceData['price'] ?? 0.0).toDouble();
 
-      // Calculate commission (default 10% if not set)
       final double commission = totalAmount * 0.10;
 
       final currentUser = _supabase.auth.currentUser;
 
-      // 3. Insert new booking with standardized 'booked' status
       await _supabase.from('bookings').insert({
         'vehicle_id': vehicleId,
         'service_id': _selectedServiceId,
@@ -118,7 +114,7 @@ class _CashierRegistrationScreenState extends State<CashierRegistrationScreen> {
         'delivery_address': _selectedLocationType == 'mobile'
             ? _addressController.text.trim()
             : null,
-        'status': 'booked',
+        'status': 'order_placed',
         'payment_status': 'pending',
         'total_amount': totalAmount,
         'commission_earned': commission,
