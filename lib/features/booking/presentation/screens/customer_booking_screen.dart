@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
 import 'package:bishe_car_wash/main.dart';
 import 'package:bishe_car_wash/features/cashier/presentation/screens/cashier_login_screen.dart';
 import 'package:bishe_car_wash/features/admin/presentation/screens/admin_login_screen.dart';
+import 'package:bishe_car_wash/features/queue/presentation/widgets/shared_queue_tracker_widget.dart';
 
 class CustomerBookingScreen extends ConsumerStatefulWidget {
   const CustomerBookingScreen({super.key});
@@ -28,20 +30,15 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
   bool _isSubmitting = false;
   bool _isFetchingLocation = false;
 
-  int _activeQueueCount = 0;
-  bool _isLoadingQueue = true;
-
   List<Map<String, dynamic>> _allServices = [];
   final Set<int> _selectedServiceIds = {};
   bool _isLoadingServices = true;
 
   RealtimeChannel? _servicesChannel;
-  RealtimeChannel? _bookingsChannel;
 
   @override
   void initState() {
     super.initState();
-    _fetchActiveQueueCount();
     _fetchAllServices();
     _setupRealtimeSubscriptions();
   }
@@ -56,34 +53,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
           callback: (_) => _fetchAllServices(),
         )
         .subscribe();
-
-    _bookingsChannel = Supabase.instance.client
-        .channel('public:bookings_customer_multi')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'bookings',
-          callback: (_) => _fetchActiveQueueCount(),
-        )
-        .subscribe();
-  }
-
-  Future<void> _fetchActiveQueueCount() async {
-    try {
-      final res = await Supabase.instance.client
-          .from('bookings')
-          .select()
-          .inFilter('status',
-              ['order_placed', 'confirmed', 'in_progress', 'washing', 'ready']);
-
-      if (!mounted) return;
-      setState(() {
-        _activeQueueCount = res.length;
-        _isLoadingQueue = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingQueue = false);
-    }
   }
 
   Future<void> _fetchAllServices() async {
@@ -135,15 +104,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
       }
     }
     return totalComm > 0 ? totalComm : 75.0;
-  }
-
-  String _getExactArrivalTime(int waitMinutes) {
-    final arrivalTime = DateTime.now().add(Duration(minutes: waitMinutes));
-    final hour =
-        arrivalTime.hour > 12 ? arrivalTime.hour - 12 : arrivalTime.hour;
-    final minute = arrivalTime.minute.toString().padLeft(2, '0');
-    final period = arrivalTime.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
   }
 
   Future<void> _getCurrentLocation() async {
@@ -251,19 +211,24 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
         bookingData['delivery_address'] = _addressController.text.trim();
       }
 
-      await Supabase.instance.client.from('bookings').insert(bookingData);
+      final bookingRes = await Supabase.instance.client
+          .from('bookings')
+          .insert(bookingData)
+          .select()
+          .single();
+
+      // Save booking ID locally so SharedQueueTrackerWidget locks onto this customer's live position
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('latest_booking_id', bookingRes['id'] as int);
 
       if (!mounted) return;
-
-      final int estWaitMins = _activeQueueCount * 45;
-      final exactTime = _getExactArrivalTime(estWaitMins);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 6),
           content: Text(_selectedLocation == 'stationary'
-              ? 'Booking live! $_activeQueueCount vehicles ahead. Please arrive at station by $exactTime.'
+              ? 'Booking live! Check queue status above for your live arrival details.'
               : 'Mobile unit request submitted! Our team will dispatch to your location.'),
         ),
       );
@@ -272,7 +237,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
       _phoneController.clear();
       _nameController.clear();
       _addressController.clear();
-      _fetchActiveQueueCount();
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -285,7 +250,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
   @override
   void dispose() {
     _servicesChannel?.unsubscribe();
-    _bookingsChannel?.unsubscribe();
     _plateController.dispose();
     _phoneController.dispose();
     _nameController.dispose();
@@ -296,8 +260,6 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final int estimatedWaitMinutes = _activeQueueCount * 45;
-    final String targetArrival = _getExactArrivalTime(estimatedWaitMinutes);
     final List<Map<String, dynamic>> currentFilteredServices =
         _filteredServices;
 
@@ -347,50 +309,7 @@ class _CustomerBookingScreenState extends ConsumerState<CustomerBookingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_selectedLocation == 'stationary')
-              Card(
-                color: AppColors.primaryBlue.withOpacity(0.08),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side:
-                      BorderSide(color: AppColors.primaryBlue.withOpacity(0.3)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.access_time_filled,
-                          size: 32, color: AppColors.primaryBlue),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _isLoadingQueue
-                            ? const Text('Loading station queue status...')
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${l10n.stationQueue}: $_activeQueueCount ${l10n.vehiclesAhead}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Recommended Arrival: $targetArrival (~$estimatedWaitMinutes mins wait)',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.blue[800],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const SharedQueueTrackerWidget(isStaff: false),
             const SizedBox(height: 16),
             Text(
               l10n.selectServiceLocation,
