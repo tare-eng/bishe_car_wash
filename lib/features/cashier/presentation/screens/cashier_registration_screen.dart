@@ -232,7 +232,7 @@ class _CashierRegistrationScreenState
           : _nameController.text.trim();
       final phone = _phoneController.text.trim();
 
-      // Check or insert vehicle
+      // Check or insert vehicle (WITHOUT 'owner_name' column)
       final existingVehicle = await Supabase.instance.client
           .from('vehicles')
           .select('id')
