@@ -17,6 +17,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _bookings = [];
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
@@ -27,7 +28,6 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
 
   Future<void> _fetchBookings() async {
     try {
-      // Exclude completed and released so they move to Customer History
       final response = await _supabase
           .from('bookings')
           .select('*, vehicles(*), services(*), employees(full_name)')
@@ -47,7 +47,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
   }
 
   void _setupRealtimeSubscription() {
-    _supabase
+    _realtimeChannel = _supabase
         .channel('public:bookings_cashier_hub')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -110,6 +110,12 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
     if (result == true) {
       _fetchBookings();
     }
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 
   @override
@@ -188,8 +194,8 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                         (booking['status'] ?? 'order_placed').toString();
                     const validStatuses = [
                       'order_placed',
-                      'started_washing',
-                      'finished',
+                      'washing',
+                      'ready',
                       'released',
                     ];
                     if (!validStatuses.contains(currentStatus)) {
@@ -306,8 +312,11 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                   color: AppColors.primaryBlue),
                             ),
                             const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 DropdownButton<String>(
                                   value: currentStatus,
@@ -317,12 +326,12 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                       child: Text('Booked'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'started_washing',
+                                      value: 'washing',
                                       child: Text('Washing'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'finished',
-                                      child: Text('Finished'),
+                                      value: 'ready',
+                                      child: Text('Ready for Pickup'),
                                     ),
                                     DropdownMenuItem(
                                       value: 'released',
@@ -342,7 +351,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                       backgroundColor: AppColors.successGreen,
                                       foregroundColor: Colors.white,
                                     ),
-                                    icon: const Icon(Icons.payment),
+                                    icon: const Icon(Icons.payment, size: 18),
                                     label: const Text('Verify Payment'),
                                     onPressed: () {
                                       showDialog(

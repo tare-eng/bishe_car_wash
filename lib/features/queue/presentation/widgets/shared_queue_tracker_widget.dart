@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
 
 class SharedQueueTrackerWidget extends StatefulWidget {
-  final bool isStaff; // true for Admin/Cashier, false for Anonymous Customers
-  final int? bayFilter; // Optional filter for specific bay (1 or 2)
+  final bool isStaff;
+  final int? bayFilter;
 
   const SharedQueueTrackerWidget({
     super.key,
@@ -52,8 +52,7 @@ class _SharedQueueTrackerWidgetState extends State<SharedQueueTrackerWidget> {
           .from('bookings')
           .select(
               '*, vehicles(*), employees:employee_id(full_name), services(*)')
-          .inFilter('status',
-              ['order_placed', 'confirmed', 'in_progress', 'washing', 'ready']);
+          .inFilter('status', ['order_placed', 'washing', 'ready']);
 
       if (widget.bayFilter != null && widget.isStaff) {
         query.eq('assigned_bay', widget.bayFilter!);
@@ -64,26 +63,21 @@ class _SharedQueueTrackerWidgetState extends State<SharedQueueTrackerWidget> {
           List<Map<String, dynamic>>.from(res);
 
       if (!widget.isStaff) {
-        // Customer Privacy View: Check local storage for their active booking ID
         final prefs = await SharedPreferences.getInstance();
         final int? myBookingId = prefs.getInt('latest_booking_id');
 
         if (myBookingId != null) {
           int myIndex = bookings.indexWhere((b) => b['id'] == myBookingId);
           if (myIndex != -1) {
-            // Count vehicles ahead in line relative to this customer
             _vehiclesAhead = myIndex;
-            // Factoring in 2 parallel stationary bays: (vehiclesAhead / 2) * 45 mins per wash cycle
             _estimatedMinutes = ((_vehiclesAhead / 2).ceil()) * 45;
             _targetArrival = _calculateArrivalTime(_estimatedMinutes);
           } else {
-            // Fallback to total active station count if booking is completed/not found
             _vehiclesAhead = bookings.length;
             _estimatedMinutes = ((_vehiclesAhead / 2).ceil()) * 45;
             _targetArrival = _calculateArrivalTime(_estimatedMinutes);
           }
         } else {
-          // No booking stored yet, show total active station queue
           _vehiclesAhead = bookings.length;
           _estimatedMinutes = ((_vehiclesAhead / 2).ceil()) * 45;
           _targetArrival = _calculateArrivalTime(_estimatedMinutes);
@@ -122,7 +116,6 @@ class _SharedQueueTrackerWidgetState extends State<SharedQueueTrackerWidget> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // --- PRIVACY VIEW FOR ANONYMOUS CUSTOMERS ---
     if (!widget.isStaff) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -160,10 +153,7 @@ class _SharedQueueTrackerWidgetState extends State<SharedQueueTrackerWidget> {
           ],
         ),
       );
-    }
-
-    // --- FULL DETAIL VIEW FOR STAFF (ADMIN & CASHIER) ---
-    else {
+    } else {
       if (_staffQueueList.isEmpty) {
         return const Padding(
           padding: EdgeInsets.all(16.0),
