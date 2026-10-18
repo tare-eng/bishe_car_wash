@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
 import 'package:bishe_car_wash/main.dart';
 
@@ -20,8 +22,8 @@ class _CashierRegistrationScreenState
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
 
-  String _selectedSource = 'walk_in';
-  String _selectedLocation = 'stationary';
+  String _selectedSource = 'walk_in'; // 'walk_in' or 'phone'
+  String _selectedLocation = 'stationary'; // 'stationary' or 'mobile'
   String _selectedCategoryEnum = 'TYPE_A';
   int _selectedBay = 1;
   int? _selectedEmployeeId;
@@ -32,6 +34,7 @@ class _CashierRegistrationScreenState
 
   bool _isLoading = true;
   bool _isSubmitting = false;
+  bool _isFetchingLocation = false;
   int _queueAheadCount = 0;
 
   RealtimeChannel? _servicesSubscription;
@@ -145,6 +148,52 @@ class _CashierRegistrationScreenState
       }
     }
     return totalComm > 0 ? totalComm : 100.0;
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('GPS is disabled. Opening Location Settings...')),
+        );
+        await Geolocator.openLocationSettings();
+        setState(() => _isFetchingLocation = false);
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permissions were denied.')),
+          );
+          setState(() => _isFetchingLocation = false);
+          return;
+        }
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _addressController.text =
+            'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)} (GPS Live)';
+        _isFetchingLocation = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not fetch GPS location: $e')),
+      );
+      setState(() => _isFetchingLocation = false);
+    }
   }
 
   Future<void> _submitRegistration() async {
@@ -267,6 +316,7 @@ class _CashierRegistrationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final List<Map<String, dynamic>> currentFilteredServices =
         _filteredServices;
 
@@ -297,6 +347,7 @@ class _CashierRegistrationScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Intake Channel Selection (Gate Walk-In vs Phone Call)
                   Row(
                     children: [
                       Expanded(
@@ -341,79 +392,187 @@ class _CashierRegistrationScreenState
                     ],
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _selectedLocation,
-                    decoration: const InputDecoration(
-                      labelText: 'Wash Service Mode',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'stationary',
-                        child: Text('Washing Station (Bay Washing)'),
+
+                  // Service Location Cards (Matching Customer Booking UI/UX)
+                  Text(
+                    l10n.selectServiceLocation,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedLocation = 'stationary'),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _selectedLocation == 'stationary'
+                                  ? AppColors.primaryBlue.withOpacity(0.12)
+                                  : Colors.white,
+                              border: Border.all(
+                                color: _selectedLocation == 'stationary'
+                                    ? AppColors.primaryBlue
+                                    : Colors.grey.shade300,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.local_car_wash,
+                                  color: _selectedLocation == 'stationary'
+                                      ? AppColors.primaryBlue
+                                      : Colors.grey,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  l10n.washingStation,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedLocation == 'stationary'
+                                        ? AppColors.primaryBlue
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'mobile',
-                        child: Text('Mobile Service (Home Washing)'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedLocation = 'mobile'),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _selectedLocation == 'mobile'
+                                  ? AppColors.primaryBlue.withOpacity(0.12)
+                                  : Colors.white,
+                              border: Border.all(
+                                color: _selectedLocation == 'mobile'
+                                    ? AppColors.primaryBlue
+                                    : Colors.grey.shade300,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.home_repair_service,
+                                  color: _selectedLocation == 'mobile'
+                                      ? AppColors.primaryBlue
+                                      : Colors.grey,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  l10n.mobileService,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedLocation == 'mobile'
+                                        ? AppColors.primaryBlue
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                    onChanged: (val) =>
-                        setState(() => _selectedLocation = val ?? 'stationary'),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Vehicle & Contact Section
+                  Text(
+                    l10n.vehicleAndContact,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _plateController,
-                    decoration: const InputDecoration(
-                      labelText: 'License Plate Number *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: '${l10n.licensePlate} *',
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Customer Full Name',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.fullName,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: '${l10n.phoneNumber} *',
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Mobile Location Address + GPS Button
                   if (_selectedLocation == 'mobile') ...[
-                    TextField(
-                      controller: _addressController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Home / Delivery Address *',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.location_on),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _addressController,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              labelText: '${l10n.homeDeliveryAddress} *',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: const Icon(Icons.location_on),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 56,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _isFetchingLocation
+                                ? null
+                                : _getCurrentLocation,
+                            icon: const Icon(Icons.my_location),
+                            label: Text(l10n.gps),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                   ],
+
+                  // Vehicle Class Dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedCategoryEnum,
-                    decoration: const InputDecoration(
-                      labelText: 'Vehicle Class *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: '${l10n.vehicleClass} *',
+                      border: const OutlineInputBorder(),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
-                          value: 'TYPE_A',
-                          child: Text('Type A - Small (Sedan/Hatchback)')),
+                          value: 'TYPE_A', child: Text(l10n.typeA)),
                       DropdownMenuItem(
-                          value: 'TYPE_B',
-                          child: Text('Type B - Medium (Crossover/SUV)')),
+                          value: 'TYPE_B', child: Text(l10n.typeB)),
                       DropdownMenuItem(
-                          value: 'TYPE_C',
-                          child: Text('Type C - Large (Truck/Van/Minibus)')),
+                          value: 'TYPE_C', child: Text(l10n.typeC)),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -429,9 +588,12 @@ class _CashierRegistrationScreenState
                     },
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Select Service Packages (Multiple Allowed) *',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+
+                  // Service Packages Multi-Select Checkboxes
+                  Text(
+                    l10n.selectServicePackages,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -483,12 +645,15 @@ class _CashierRegistrationScreenState
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Cashier Specific: Assigned Work Bay Field
                   if (_selectedLocation == 'stationary') ...[
                     DropdownButtonFormField<int>(
                       value: _selectedBay,
                       decoration: const InputDecoration(
-                        labelText: 'Assigned Work Bay',
+                        labelText: 'Assigned Work Bay *',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.local_parking),
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -501,11 +666,14 @@ class _CashierRegistrationScreenState
                     ),
                     const SizedBox(height: 12),
                   ],
+
+                  // Cashier Specific: Assigned Washer Staff Field
                   DropdownButtonFormField<int>(
                     value: _selectedEmployeeId,
                     decoration: const InputDecoration(
                       labelText: 'Assigned Washer Staff *',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.badge),
                     ),
                     items: _washers.map((w) {
                       return DropdownMenuItem<int>(
@@ -523,6 +691,8 @@ class _CashierRegistrationScreenState
                     },
                   ),
                   const SizedBox(height: 16),
+
+                  // Combined Summary Box
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -535,9 +705,10 @@ class _CashierRegistrationScreenState
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Total Price:',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                            Text(
+                              l10n.totalCombinedPrice,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
                               '$_calculatedAmount ETB',
@@ -572,6 +743,8 @@ class _CashierRegistrationScreenState
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // Submit Button
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -585,8 +758,8 @@ class _CashierRegistrationScreenState
                           ? const CircularProgressIndicator(color: Colors.white)
                           : Text(
                               _selectedSource == 'phone'
-                                  ? 'Confirm Phone Booking'
-                                  : 'Register & Add to Live Queue',
+                                  ? 'Confirm Phone Booking ($_calculatedAmount ETB)'
+                                  : 'Register & Add to Live Queue ($_calculatedAmount ETB)',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
