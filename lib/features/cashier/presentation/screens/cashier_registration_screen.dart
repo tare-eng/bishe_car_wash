@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bishe_car_wash/core/constants/app_colors.dart';
@@ -12,553 +11,349 @@ class CashierRegistrationScreen extends StatefulWidget {
 }
 
 class _CashierRegistrationScreenState extends State<CashierRegistrationScreen> {
-  final _plateController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _nameController = TextEditingController();
-  final _addressController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  String _selectedSource = 'walk_in';
-  String _selectedLocation = 'stationary';
-  String _selectedCategoryEnum = 'TYPE_A';
-  int _selectedBay = 1;
+  final TextEditingController _ownerNameController = TextEditingController();
+  final TextEditingController _licensePlateController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  List<Map<String, dynamic>> _services = [];
+  List<Map<String, dynamic>> _employees = [];
+
+  int? _selectedServiceId;
   int? _selectedEmployeeId;
-  final Set<int> _selectedServiceIds = {};
+  String _selectedSource = 'walk_in'; // 'walk_in' or 'phone'
+  String _selectedLocationType = 'stationary'; // 'stationary' or 'mobile'
+  final TextEditingController _addressController = TextEditingController();
 
-  List<Map<String, dynamic>> _washers = [];
-  List<Map<String, dynamic>> _allServices = [];
-
-  bool _isLoading = true;
-  bool _isSubmitting = false;
-  int _queueAheadCount = 0;
-
-  RealtimeChannel? _servicesSubscription;
+  bool _isLoading = false;
+  bool _isInitialFetching = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchDropdownData();
-    _setupServicesRealtime();
+    _fetchInitialData();
   }
 
-  void _setupServicesRealtime() {
-    _servicesSubscription = Supabase.instance.client
-        .channel('public:services_cashier_screen_multi')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'services',
-          callback: (_) => _fetchServicesOnly(),
-        )
-        .subscribe();
-  }
-
-  Future<void> _fetchServicesOnly() async {
+  Future<void> _fetchInitialData() async {
     try {
-      final servicesRes = await Supabase.instance.client
-          .from('services')
-          .select()
-          .order('id', ascending: true);
+      final servicesRes = await _supabase.from('services').select('*');
+      final employeesRes = await _supabase.from('employees').select('*');
 
       if (!mounted) return;
       setState(() {
-        _allServices = List<Map<String, dynamic>>.from(servicesRes);
+        _services = List<Map<String, dynamic>>.from(servicesRes);
+        _employees = List<Map<String, dynamic>>.from(employeesRes);
+        if (_services.isNotEmpty) {
+          _selectedServiceId = _services.first['id'] as int?;
+        }
+        _isInitialFetching = false;
       });
-    } catch (_) {}
-  }
-
-  Future<void> _fetchDropdownData() async {
-    try {
-      final washersRes =
-          await Supabase.instance.client.from('employees').select();
-
-      List<Map<String, dynamic>> loadedWashers =
-          List<Map<String, dynamic>>.from(washersRes);
-
-      final filteredWashers = loadedWashers
-          .where((e) => e['role'] == 'washer' || e['role'] == null)
-          .toList();
-
-      _washers = filteredWashers.isNotEmpty ? filteredWashers : loadedWashers;
-
-      if (_washers.isEmpty) {
-        _washers = [
-          {'id': 1, 'full_name': 'General Washer Staff', 'phone': 'N/A'}
-        ];
-      }
-      _selectedEmployeeId = _washers.first['id'] as int?;
-
-      final servicesRes = await Supabase.instance.client
-          .from('services')
-          .select()
-          .order('id', ascending: true);
-
-      _allServices = List<Map<String, dynamic>>.from(servicesRes);
-      if (_filteredServices.isNotEmpty) {
-        _selectedServiceIds.add(_filteredServices.first['id'] as int);
-      }
-
-      final bookingsRes = await Supabase.instance.client
-          .from('bookings')
-          .select()
-          .eq('assigned_bay', _selectedBay)
-          .inFilter('status',
-              ['order_placed', 'confirmed', 'in_progress', 'washing', 'ready']);
-
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _queueAheadCount = bookingsRes.length;
-        _isLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
-  }
-
-  List<Map<String, dynamic>> get _filteredServices {
-    return _allServices
-        .where((s) => s['vehicle_type'] == _selectedCategoryEnum)
-        .toList();
-  }
-
-  double get _calculatedAmount {
-    double total = 0.0;
-    for (final s in _filteredServices) {
-      if (_selectedServiceIds.contains(s['id'])) {
-        final price = _selectedLocation == 'stationary'
-            ? (s['stationary_price'] ?? 500.0).toDouble()
-            : (s['mobile_price'] ?? 700.0).toDouble();
-        total += price;
-      }
-    }
-    return total > 0 ? total : 500.0;
-  }
-
-  double get _calculatedCommission {
-    double totalComm = 0.0;
-    for (final s in _filteredServices) {
-      if (_selectedServiceIds.contains(s['id'])) {
-        totalComm += (s['commission_amount'] ?? 100.0).toDouble();
-      }
-    }
-    return totalComm > 0 ? totalComm : 100.0;
-  }
-
-  Future<void> _submitRegistration() async {
-    if (_plateController.text.trim().isEmpty ||
-        _phoneController.text.trim().isEmpty) {
+      setState(() => _isInitialFetching = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please enter license plate and phone number')),
+        SnackBar(content: Text('Failed to load services or staff: $e')),
+      );
+    }
+  }
+
+  Future<void> _registerCustomer() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedServiceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a service package.')),
       );
       return;
     }
 
-    if (_selectedServiceIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please select at least one service package')),
-      );
-      return;
-    }
-
-    if (_selectedLocation == 'mobile' &&
-        _addressController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please enter delivery address for mobile service')),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
+    setState(() => _isLoading = true);
 
     try {
-      final vehicleRes = await Supabase.instance.client
+      final plate = _licensePlateController.text.trim().toUpperCase();
+      final ownerName = _ownerNameController.text.trim();
+      final phone = _phoneController.text.trim();
+
+      // 1. Check or insert vehicle
+      final existingVehicle = await _supabase
           .from('vehicles')
-          .insert({
-            'license_plate': _plateController.text.trim().toUpperCase(),
-            'make_model': 'Customer Vehicle',
-            'category': _selectedCategoryEnum,
-            'customer_phone': _phoneController.text.trim(),
-          })
-          .select()
-          .single();
+          .select('id')
+          .eq('license_plate', plate)
+          .maybeSingle();
 
-      final int primaryServiceId = _selectedServiceIds.first;
-
-      final Map<String, dynamic> bookingPayload = {
-        'vehicle_id': vehicleRes['id'],
-        'service_id': primaryServiceId,
-        'source': _selectedSource,
-        'location_type': _selectedLocation,
-        'total_amount': _calculatedAmount,
-        'commission_earned': _calculatedCommission,
-        'owner_name': _nameController.text.trim().isEmpty
-            ? 'Customer'
-            : _nameController.text.trim(),
-        'assigned_bay': _selectedLocation == 'stationary' ? _selectedBay : null,
-        'employee_id': _selectedEmployeeId,
-        'payment_status': 'pending',
-        'status': 'order_placed',
-      };
-
-      if (_selectedLocation == 'mobile') {
-        bookingPayload['delivery_address'] = _addressController.text.trim();
+      int vehicleId;
+      if (existingVehicle != null) {
+        vehicleId = existingVehicle['id'] as int;
+      } else {
+        final newVehicle = await _supabase
+            .from('vehicles')
+            .insert({
+              'license_plate': plate,
+              'owner_name': ownerName,
+              'phone_number': phone,
+            })
+            .select('id')
+            .single();
+        vehicleId = newVehicle['id'] as int;
       }
 
-      await Supabase.instance.client.from('bookings').insert(bookingPayload);
+      // 2. Find service price and details
+      final serviceData =
+          _services.firstWhere((s) => s['id'] == _selectedServiceId);
+      final double totalAmount = (serviceData['price'] ?? 0.0).toDouble();
+
+      // Calculate commission (default 10% if not set)
+      final double commission = totalAmount * 0.10;
+
+      final currentUser = _supabase.auth.currentUser;
+
+      // 3. Insert new booking with standardized 'booked' status
+      await _supabase.from('bookings').insert({
+        'vehicle_id': vehicleId,
+        'service_id': _selectedServiceId,
+        'owner_name': ownerName,
+        'source': _selectedSource,
+        'location_type': _selectedLocationType,
+        'delivery_address': _selectedLocationType == 'mobile'
+            ? _addressController.text.trim()
+            : null,
+        'status': 'booked',
+        'payment_status': 'pending',
+        'total_amount': totalAmount,
+        'commission_earned': commission,
+        'employee_id': _selectedEmployeeId,
+        'cashier_id': currentUser?.id,
+      });
 
       if (!mounted) return;
-      Navigator.pop(context, true);
-
-      final int estWaitMins = _queueAheadCount * 45;
-      final String successMsg = _selectedSource == 'phone'
-          ? 'Phone booking registered! Arrival in ~$estWaitMins mins.'
-          : 'Customer registered and added to queue!';
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.successGreen,
-          content: Text(successMsg),
+          content:
+              Text('Customer $ownerName ($plate) registered successfully!'),
         ),
       );
+
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error registering booking: $e')),
+        SnackBar(content: Text('Registration failed: $e')),
       );
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   void dispose() {
-    _servicesSubscription?.unsubscribe();
-    _plateController.dispose();
+    _ownerNameController.dispose();
+    _licensePlateController.dispose();
     _phoneController.dispose();
-    _nameController.dispose();
     _addressController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> currentFilteredServices =
-        _filteredServices;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cashier Terminal - Customer Intake'),
+        title: const Text('Register Walk-In / Phone Customer'),
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,
       ),
-      body: _isLoading
+      body: _isInitialFetching
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.directions_car, size: 16),
-                              SizedBox(width: 6),
-                              Text('Gate Walk-In'),
-                            ],
-                          ),
-                          selected: _selectedSource == 'walk_in',
-                          selectedColor: AppColors.primaryBlue.withOpacity(0.2),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => _selectedSource = 'walk_in');
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.phone_in_talk, size: 16),
-                              SizedBox(width: 6),
-                              Text('Phone Call'),
-                            ],
-                          ),
-                          selected: _selectedSource == 'phone',
-                          selectedColor: AppColors.primaryBlue.withOpacity(0.2),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => _selectedSource = 'phone');
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _selectedLocation,
-                    decoration: const InputDecoration(
-                      labelText: 'Wash Service Mode',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'stationary',
-                        child: Text('Washing Station (Bay Washing)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'mobile',
-                        child: Text('Mobile Service (Home Washing)'),
-                      ),
-                    ],
-                    onChanged: (val) =>
-                        setState(() => _selectedLocation = val ?? 'stationary'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _plateController,
-                    decoration: const InputDecoration(
-                      labelText: 'License Plate Number *',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Customer Full Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number *',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_selectedLocation == 'mobile') ...[
-                    TextField(
-                      controller: _addressController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Home / Delivery Address *',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.location_on),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Customer & Vehicle Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryBlue,
                       ),
                     ),
                     const SizedBox(height: 12),
-                  ],
-                  DropdownButtonFormField<String>(
-                    value: _selectedCategoryEnum,
-                    decoration: const InputDecoration(
-                      labelText: 'Vehicle Class *',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'TYPE_A',
-                          child: Text('Type A - Small (Sedan/Hatchback)')),
-                      DropdownMenuItem(
-                          value: 'TYPE_B',
-                          child: Text('Type B - Medium (Crossover/SUV)')),
-                      DropdownMenuItem(
-                          value: 'TYPE_C',
-                          child: Text('Type C - Large (Truck/Van/Minibus)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() {
-                          _selectedCategoryEnum = val;
-                          _selectedServiceIds.clear();
-                          if (_filteredServices.isNotEmpty) {
-                            _selectedServiceIds
-                                .add(_filteredServices.first['id'] as int);
-                          }
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Select Service Packages (Multiple Allowed) *',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: currentFilteredServices.length,
-                      itemBuilder: (context, index) {
-                        final s = currentFilteredServices[index];
-                        final int serviceId = s['id'] as int;
-                        final double sPrice =
-                            (s['stationary_price'] ?? 500).toDouble();
-                        final double mPrice =
-                            (s['mobile_price'] ?? 700).toDouble();
-                        final double price =
-                            _selectedLocation == 'stationary' ? sPrice : mPrice;
-                        final bool isChecked =
-                            _selectedServiceIds.contains(serviceId);
-
-                        return CheckboxListTile(
-                          title: Text(s['service_name'] ?? 'Wash'),
-                          subtitle: Text('$price ETB'),
-                          value: isChecked,
-                          activeColor: AppColors.primaryBlue,
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) {
-                                _selectedServiceIds.add(serviceId);
-                              } else {
-                                if (_selectedServiceIds.length > 1) {
-                                  _selectedServiceIds.remove(serviceId);
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'At least one service must be selected.'),
-                                    ),
-                                  );
-                                }
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_selectedLocation == 'stationary') ...[
-                    DropdownButtonFormField<int>(
-                      value: _selectedBay,
+                    TextFormField(
+                      controller: _ownerNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Assigned Work Bay',
+                        labelText: 'Customer Full Name',
+                        prefixIcon: Icon(Icons.person),
                         border: OutlineInputBorder(),
                       ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 1, child: Text('Bay 1 (Stationary)')),
-                        DropdownMenuItem(
-                            value: 2, child: Text('Bay 2 (Stationary)')),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                              ? 'Please enter customer name'
+                              : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _licensePlateController,
+                      decoration: const InputDecoration(
+                        labelText: 'License Plate (e.g. AA-3-12345)',
+                        prefixIcon: Icon(Icons.directions_car),
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                              ? 'Please enter license plate'
+                              : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number (Optional)',
+                        prefixIcon: Icon(Icons.phone),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const Divider(height: 32),
+                    const Text(
+                      'Service & Booking Details',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: _selectedServiceId,
+                      decoration: const InputDecoration(
+                        labelText: 'Select Service Package',
+                        prefixIcon: Icon(Icons.local_car_wash),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _services.map((service) {
+                        final price = service['price'] ?? 0;
+                        final name = service['service_name'] ?? 'Wash';
+                        return DropdownMenuItem<int>(
+                          value: service['id'] as int,
+                          child: Text('$name - ETB $price'),
+                        );
+                      }).toList(),
+                      onChanged: (val) =>
+                          setState(() => _selectedServiceId = val),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: _selectedEmployeeId,
+                      decoration: const InputDecoration(
+                        labelText: 'Assign Washer (Optional)',
+                        prefixIcon: Icon(Icons.badge),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('Unassigned / Next Available'),
+                        ),
+                        ..._employees.map((e) {
+                          return DropdownMenuItem<int>(
+                            value: e['id'] as int,
+                            child: Text(e['full_name'] ?? 'Washer'),
+                          );
+                        }),
                       ],
                       onChanged: (val) =>
-                          setState(() => _selectedBay = val ?? 1),
+                          setState(() => _selectedEmployeeId = val),
                     ),
                     const SizedBox(height: 12),
-                  ],
-                  DropdownButtonFormField<int>(
-                    value: _selectedEmployeeId,
-                    decoration: const InputDecoration(
-                      labelText: 'Assigned Washer Staff *',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _washers.map((w) {
-                      return DropdownMenuItem<int>(
-                        value: w['id'] as int,
-                        child: Text(
-                          '${w['full_name']} (${w['phone'] ?? 'Staff'})',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _selectedEmployeeId = val);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Column(
+                    Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Total Price:',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedSource,
+                            decoration: const InputDecoration(
+                              labelText: 'Booking Channel',
+                              border: OutlineInputBorder(),
                             ),
-                            Text(
-                              '$_calculatedAmount ETB',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'walk_in', child: Text('Walk-In')),
+                              DropdownMenuItem(
+                                  value: 'phone', child: Text('Phone Call')),
+                            ],
+                            onChanged: (val) => setState(
+                                () => _selectedSource = val ?? 'walk_in'),
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Washer Commission:',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedLocationType,
+                            decoration: const InputDecoration(
+                              labelText: 'Service Mode',
+                              border: OutlineInputBorder(),
                             ),
-                            Text(
-                              '$_calculatedCommission ETB',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'stationary',
+                                  child: Text('Stationary')),
+                              DropdownMenuItem(
+                                  value: 'mobile',
+                                  child: Text('Mobile Service')),
+                            ],
+                            onChanged: (val) => setState(() =>
+                                _selectedLocationType = val ?? 'stationary'),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: Colors.white,
+                    if (_selectedLocationType == 'mobile') ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Delivery / Mobile Location Address',
+                          prefixIcon: Icon(Icons.location_on),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) =>
+                            _selectedLocationType == 'mobile' &&
+                                    (value == null || value.trim().isEmpty)
+                                ? 'Please provide delivery address'
+                                : null,
                       ),
-                      onPressed: _isSubmitting ? null : _submitRegistration,
-                      child: _isSubmitting
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                              _selectedSource == 'phone'
-                                  ? 'Confirm Phone Booking'
-                                  : 'Register & Add to Live Queue',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                    ],
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: _isLoading
+                            ? const SizedBox.shrink()
+                            : const Icon(Icons.check_circle),
+                        label: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : const Text(
+                                'Confirm & Register Customer',
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
                               ),
-                            ),
+                        onPressed: _isLoading ? null : _registerCustomer,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
