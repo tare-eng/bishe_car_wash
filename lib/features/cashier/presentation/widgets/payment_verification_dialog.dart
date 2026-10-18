@@ -54,7 +54,6 @@ class _PaymentVerificationDialogState extends State<PaymentVerificationDialog> {
     try {
       String? imageUrl;
 
-      // Upload payment proof screenshot to Supabase Storage if digital
       if (_pickedImage != null) {
         final fileExt = _pickedImage!.path.split('.').last;
         final fileName =
@@ -69,10 +68,10 @@ class _PaymentVerificationDialogState extends State<PaymentVerificationDialog> {
             .getPublicUrl(fileName);
       }
 
-      // Update booking status & payment record
+      // Mark payment confirmed and status finished so it archives to history automatically
       await Supabase.instance.client.from('bookings').update({
-        'payment_status': 'paid',
-        'status': 'completed',
+        'payment_status': 'confirmed',
+        'status': 'finished',
         'payment_method': _selectedPaymentMethod,
         'transaction_ref': _refController.text.trim(),
         'payment_proof_url': imageUrl,
@@ -85,7 +84,7 @@ class _PaymentVerificationDialogState extends State<PaymentVerificationDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.successGreen,
-          content: Text('Payment verified for $plate ($amount ETB)!'),
+          content: Text('Payment confirmed for $plate ($amount ETB)!'),
         ),
       );
     } catch (e) {

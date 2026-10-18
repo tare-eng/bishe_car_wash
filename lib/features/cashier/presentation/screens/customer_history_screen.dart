@@ -24,7 +24,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
       final res = await Supabase.instance.client
           .from('bookings')
           .select('*, vehicles(*), services(*), employees(full_name)')
-          .or('status.eq.released,status.eq.completed')
+          .or('status.eq.finished,status.eq.released')
           .order('id', ascending: false);
 
       if (!mounted) return;
@@ -41,7 +41,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Released Customers & Order History'),
+        title: const Text('Finished & Released History'),
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,
       ),
@@ -50,7 +50,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
           : _history.isEmpty
               ? Center(
                   child: Text(
-                    'No released or completed customer records yet.',
+                    'No finished or released customer records yet.',
                     style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                 )
@@ -80,7 +80,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                         ),
                         trailing: Chip(
                           label: Text(
-                            (item['status'] ?? 'RELEASED')
+                            (item['status'] ?? 'FINISHED')
                                 .toString()
                                 .toUpperCase(),
                             style: const TextStyle(

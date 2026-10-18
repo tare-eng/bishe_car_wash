@@ -52,7 +52,7 @@ class _SharedQueueTrackerWidgetState extends State<SharedQueueTrackerWidget> {
           .from('bookings')
           .select(
               '*, vehicles(*), employees:employee_id(full_name), services(*)')
-          .inFilter('status', ['order_placed', 'washing', 'ready']);
+          .inFilter('status', ['booked', 'in_progress']);
 
       if (widget.bayFilter != null && widget.isStaff) {
         query.eq('assigned_bay', widget.bayFilter!);

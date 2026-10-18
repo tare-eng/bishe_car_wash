@@ -31,7 +31,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
       final response = await _supabase
           .from('bookings')
           .select('*, vehicles(*), services(*), employees(full_name)')
-          .neq('status', 'completed')
+          .neq('status', 'finished')
           .neq('status', 'released')
           .order('id', ascending: false);
 
@@ -191,15 +191,15 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                             .replaceAll('TYPE_', 'Type ');
 
                     String currentStatus =
-                        (booking['status'] ?? 'order_placed').toString();
+                        (booking['status'] ?? 'booked').toString();
                     const validStatuses = [
-                      'order_placed',
-                      'washing',
-                      'ready',
+                      'booked',
+                      'in_progress',
+                      'finished',
                       'released',
                     ];
                     if (!validStatuses.contains(currentStatus)) {
-                      currentStatus = 'order_placed';
+                      currentStatus = 'booked';
                     }
 
                     final totalAmount = booking['total_amount'] ?? 0;
@@ -246,8 +246,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: paymentStatus == 'verified' ||
-                                                paymentStatus == 'paid'
+                                        color: paymentStatus == 'confirmed'
                                             ? Colors.green[100]
                                             : Colors.orange[100],
                                         borderRadius: BorderRadius.circular(8),
@@ -255,8 +254,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                       child: Text(
                                         paymentStatus.toUpperCase(),
                                         style: TextStyle(
-                                          color: paymentStatus == 'verified' ||
-                                                  paymentStatus == 'paid'
+                                          color: paymentStatus == 'confirmed'
                                               ? Colors.green[800]
                                               : Colors.orange[800],
                                           fontWeight: FontWeight.bold,
@@ -322,16 +320,16 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                   value: currentStatus,
                                   items: const [
                                     DropdownMenuItem(
-                                      value: 'order_placed',
+                                      value: 'booked',
                                       child: Text('Booked'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'washing',
-                                      child: Text('Washing'),
+                                      value: 'in_progress',
+                                      child: Text('In Progress'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'ready',
-                                      child: Text('Ready for Pickup'),
+                                      value: 'finished',
+                                      child: Text('Finished'),
                                     ),
                                     DropdownMenuItem(
                                       value: 'released',
@@ -344,8 +342,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                     }
                                   },
                                 ),
-                                if (paymentStatus != 'verified' &&
-                                    paymentStatus != 'paid')
+                                if (paymentStatus != 'confirmed')
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.successGreen,
@@ -366,7 +363,7 @@ class _CashierHubScreenState extends State<CashierHubScreen> {
                                   )
                                 else
                                   const Text(
-                                    'Paid & Verified',
+                                    'Paid & Confirmed',
                                     style: TextStyle(
                                       color: Colors.green,
                                       fontWeight: FontWeight.bold,
