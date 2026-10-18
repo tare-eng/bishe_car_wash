@@ -12,16 +12,16 @@ class AppLocalizationsAm extends AppLocalizations {
   String get appTitle => 'ቢሼ የመኪና ማጠቢያ';
 
   @override
-  String get customerBooking => 'የደንበኛ ማጠቢያ ትዕዛዝ';
+  String get customerBooking => 'የመኪና ማጠቢያ ቀጠሮ';
 
   @override
-  String get selectServiceLocation => 'የማጠቢያ ቦታ ይምረጡ';
+  String get selectServiceLocation => 'የአገልግሎት ቦታ ይምረጡ';
 
   @override
-  String get washingStation => 'ማጠቢያ ጣቢያ';
+  String get washingStation => 'በጣቢያ (በቦታው)';
 
   @override
-  String get mobileService => 'ተንቀሳቃሽ አገልግሎት (ቤት ድረስ)';
+  String get mobileService => 'የሞባይል አገልግሎት (ቤት ድረስ)';
 
   @override
   String get driveToStation => 'ወደ ጣቢያው ይምጡ';
@@ -30,10 +30,10 @@ class AppLocalizationsAm extends AppLocalizations {
   String get washAtHome => 'እቤትዎ ድረስ እናጥባለን';
 
   @override
-  String get vehicleAndContact => 'የመኪና እና የደንበኛ መረጃ';
+  String get vehicleAndContact => 'የመኪናና ባለቤት መረጃ';
 
   @override
-  String get licensePlate => 'የመኪና ሰሌዳ ቁጥር';
+  String get licensePlate => 'ታርጋ ቁጥር';
 
   @override
   String get fullName => 'ሙሉ ስም';
@@ -42,7 +42,7 @@ class AppLocalizationsAm extends AppLocalizations {
   String get phoneNumber => 'ስልክ ቁጥር';
 
   @override
-  String get vehicleClass => 'የመኪና ዓይነት';
+  String get vehicleClass => 'የመኪና ምድብ';
 
   @override
   String get typeA => 'ዓይነት ሀ - አነስተኛ (ሴዳን/ሀችባክ)';
@@ -54,10 +54,10 @@ class AppLocalizationsAm extends AppLocalizations {
   String get typeC => 'ዓይነት ሐ - ትልቅ (ጭነት/ቫን/ሚኒባስ)';
 
   @override
-  String get selectServicePackages => 'የማጠቢያ ፓኬጅ ይምረጡ (ከአንድ በላይ ይቻላል)';
+  String get selectServicePackages => 'የአገልግሎት ፓኬጆችን ይምረጡ';
 
   @override
-  String get totalCombinedPrice => 'ጠቅላላ ተደምሮ የተሰላ ዋጋ';
+  String get totalCombinedPrice => 'አጠቃላይ ድምር ዋጋ';
 
   @override
   String get homeDeliveryAddress => 'የቤት / የደረሰኝ አድራሻ';
